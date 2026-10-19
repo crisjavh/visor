@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Crear link</title>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header><h1>Crear link</h1></header>
+
+<div class="caja">
+  <label for="f">Archivo .glb <input id="f" type="file" accept=".glb"></label>
+  <label for="n">Nombre <input id="n" type="text" maxlength="60"></label>
+  <label for="tok" id="toklabel" hidden>Token <input id="tok" type="password" autocomplete="off"></label>
+
+  <div class="fila"><button class="btn" id="go" type="button">Crear link</button></div>
+  <p class="aviso" id="msg"></p>
+
+  <div id="res" hidden>
+    <label>Link <input id="lk" type="text" readonly></label>
+    <div class="fila">
+      <button class="btn gris" id="cp" type="button">Copiar</button>
+      <button class="btn gris" id="ab" type="button" disabled>Abrir</button>
+    </div>
+    <p id="est"></p>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="cripto.js"></script>
+<script>
+var cfg = (typeof VISOR_CONFIG !== 'undefined') ? VISOR_CONFIG : {};
+function $(id) { return document.getElementById(id); }
+
+var base = location.href.replace(/crear\.html.*$/, '').replace(/[?#].*$/, '');
+var repo = cfg.repo || (location.hostname.split('.')[0] + '/' + location.pathname.split('/')[1]);
+
+// el token se guarda en este navegador
+var token = '';
+try { token = localStorage.getItem('visor_token') || ''; } catch (e) {}
+if (!token) $('toklabel').hidden = false;
+
+function aviso(t, mal) { $('msg').textContent = t; $('msg').className = 'aviso' + (mal ? ' mal' : ''); }
+
+function aleatorio() {
+  var a = new Uint8Array(8); crypto.getRandomValues(a);
+  return Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+}
+function clave() {
+  var a = new Uint8Array(18); crypto.getRandomValues(a);
+  return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function aBase64(bytes) {
+  var s = '';
+  for (var i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+  return btoa(s);
+}
+
+$('f').addEventListener('change', function () {
+  var f = this.files[0];
+  if (f && !$('n').value) $('n').value = f.name.replace(/\.glb$/i, '').replace(/[_-]+/g, ' ');
+});
+
+$('go').addEventListener('click', function () {
+  var f = $('f').files[0];
+  if (!f) return aviso('Elige un archivo .glb', true);
+  if (!/\.glb$/i.test(f.name)) return aviso('El archivo debe ser .glb', true);
+  if (!token) token = $('tok').value.trim();
+  if (!token) return aviso('Falta el token', true);
+
+  var meta = { n: ($('n').value || f.name.replace(/\.glb$/i, '')).trim(), u: cfg.unidadPorDefecto || 'm' };
+  var pass = clave(), nombre = aleatorio() + '.enc';
+  $('go').disabled = true; $('res').hidden = true;
+  aviso('Subiendo…');
+
+  f.arrayBuffer()
+    .then(function (buf) { return Cripto.encrypt(buf, meta, pass); })
+    .then(function (datos) {
+      return fetch('https://api.github.com/repos/' + repo + '/contents/piezas/' + nombre, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
+        body: JSON.stringify({ message: 'Agregar pieza', content: aBase64(datos) })
+      });
+    })
+    .then(function (r) {
+      if (r.status === 401) throw new Error('El token no sirve o venció');
+      if (r.status === 403 || r.status === 404) throw new Error('El token no tiene permiso en ' + repo);
+      if (!r.ok) throw new Error('Error de GitHub (' + r.status + ')');
+      try { localStorage.setItem('visor_token', token); } catch (e) {}
+      $('toklabel').hidden = true;
+      mostrar(nombre, pass);
+    })
+    .catch(function (e) { aviso(e.message || 'No se pudo crear el link', true); })
+    .then(function () { $('go').disabled = false; });
+});
+
+// muestra el link y espera a que GitHub publique el archivo
+function mostrar(nombre, pass) {
+  $('lk').value = base + '?m=' + nombre + '#k=' + pass;
+  $('res').hidden = false; $('ab').disabled = true;
+  aviso('');
+  $('est').textContent = 'Publicando, espera 1 o 2 minutos…';
+  var intentos = 0;
+  (function revisar() {
+    fetch(base + 'piezas/' + nombre, { cache: 'no-store' }).then(function (r) {
+      if (r.ok || ++intentos > 40) {
+        $('est').textContent = r.ok ? 'Listo' : 'Está tardando, prueba el link en unos minutos';
+        $('ab').disabled = false;
+      } else setTimeout(revisar, 5000);
+    }).catch(function () { setTimeout(revisar, 5000); });
+  })();
+}
+
+$('cp').addEventListener('click', function () {
+  $('lk').select();
+  try { navigator.clipboard.writeText($('lk').value); } catch (e) {}
+});
+$('ab').addEventListener('click', function () { window.open($('lk').value, '_blank'); });
+</script>
+</body>
+</html>

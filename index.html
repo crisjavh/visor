@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Visor 3D</title>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header>
+  <h1 id="ttl">Visor 3D</h1>
+  <span id="emp"></span>
+</header>
+
+<div class="stage">
+  <div id="view"></div>
+  <div class="load" id="load">Cargando pieza…</div>
+  <form class="pw" id="pw" hidden>
+    <h2>Pieza protegida</h2>
+    <p>Escribe la contraseña que te enviaron.</p>
+    <input id="pwi" type="password" autocomplete="off" placeholder="Contraseña">
+    <button class="btn" type="submit">Ver pieza</button>
+    <p class="err" id="pwe"></p>
+  </form>
+  <div class="hint">Arrastra para girar · rueda o pellizco para acercar</div>
+</div>
+
+<footer>
+  <div class="dim"><span>Ancho</span><b id="dx">–</b></div>
+  <div class="dim"><span>Alto</span><b id="dy">–</b></div>
+  <div class="dim"><span>Fondo</span><b id="dz">–</b></div>
+</footer>
+
+<script src="config.js"></script>
+<script src="cripto.js"></script>
+<script src="visor.js"></script>
+</body>
+</html>
